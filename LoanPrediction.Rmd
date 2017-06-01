@@ -1,0 +1,85 @@
+Here we are going to analysis Laon prediction data set from analytics vidya.
+This dataset has two part one is training data set(train.csv file) and another one is test data set(test.csv)
+Let's upload them in work space.
+
+```{r}
+getwd()
+setwd("C:/Users/Ashish Mishra/Desktop/DS/DataScienceProjects/Loan Prediction")
+train <- read.csv("train.csv",stringsAsFactors = F)
+#stringsAsFacors to convert factors into strings/char
+test <- read.csv("test.csv",stringsAsFactors = F)
+#We need to load some R packages for our analysis,let's  do that first
+library(ggplot2)  # data exploration
+library(ggthemes)  # data exploration
+library(caret)    # predictive machine learning algorithem
+library(dplyr)
+library(randomForest)
+full <- bind_rows(train,test)
+```
+
+First we need to analysis our data,let's see what  are the variables  we have in our training and test dataset
+
+```{r}
+str(full)
+```
+Our training data set has 13 variables,which includes variables credit history, applicant Income,education,employment etc., these are our predictors and Laon Status is target variable.
+
+```{r}
+str(test)
+```
+Test data set does not have Laon Status variable ,that we need to predict.
+
+```{r}
+summary(full)
+sum(is.na(train))
+sum(is.na(test))
+
+```
+We have NA  in train and test data. 
+We can apply preprocessing  by using preprocess function in caret package,lets do that!!
+```{r}
+preObj<- preProcess(full[,-13], method=c("medianImpute","center", "scale"))
+
+full_processed <- predict(preObj,full)
+sum(is.na(full_processed))
+
+
+```
+Now we have only Loan_Status as missing values,which we need to predict.Thats why I have excluded Loan_Status variable in precprocessing.
+here we  have replaced missing values by using median.
+
+
+```{r}
+set.seed(1)
+
+
+train <- full_processed[1:614,]
+test <- full_processed[615:981,]
+
+summary(test)
+```
+
+```{r}
+fitControl <- trainControl(method = "cv",number = 5,savePredictions = 'final',classProbs = T)
+#Our predictors and outcome
+predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome","CoapplicantIncome")
+
+outcome <- 'Loan_Status'
+```
+
+```{r}
+#logistic model 
+modFit <- train(train[,predictors],train[,outcome],model ='glm',trControl=fitControl,tuneLength = 3)
+
+#prediction
+test$Loan_Status<-predict(object = modFit,test[,predictors])
+
+solution <- data.frame(Loan_ID = test$Loan_ID, Loan_Status = test$Loan_Status)
+
+# Write the solution to file
+write.csv(solution, file = 'Loan_pred_solution.csv', row.names = F)
+
+```
+
+On test data we got 0.77778 score on analytics vidya forum.
+
