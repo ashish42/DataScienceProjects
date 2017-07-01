@@ -1,4 +1,4 @@
-Here we are going to analysis Laon prediction data set from analytics vidya.
+Here we are going to analysis Loan prediction data set from analytics vidya.
 This dataset has two part one is training data set(train.csv file) and another one is test data set(test.csv)
 Let's upload them in work space.
 
