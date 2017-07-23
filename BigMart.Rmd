@@ -1,0 +1,246 @@
+---
+title: "Big Mart Data Set"
+author: "Ashish Mishra"
+output: html_document
+---
+Problem Statement
+The data scientists at BigMart have collected 2013 sales data for 1559 products across 10 stores in different cities. Also, certain attributes of each product and store have been defined. The aim is to build a predictive model and find out the sales of each product at a particular store.
+Using this model, BigMart will try to understand the properties of products and stores which play a key role in increasing sales.
+The data may have missing values as some stores might not report all the data due to technical glitches. Hence, it will be required to treat them accordingly.
+
+
+```{r}
+getwd()
+setwd("C:/Users/Ashish Mishra/Desktop/DS/DataScienceProjects/BigMart")
+
+train <- read.csv("train.csv")
+test <- read.csv("test.csv")
+#train <-read.csv("train.csv",na.strings = c(""," ",NA))# here we are replacing blank spaces into NA's.
+#test <-read.csv("test.csv",na.strings = c(""," ",NA))
+
+str(train)
+head(train)
+summary(train)
+#From  summary of training data set we can see there are 1463 NA's in Item_weight only, other coulmns does not have any NA.lets check our test data set for NA.
+summary(test)
+#same with test data set there is 976 NA's in Item_Weight columnn
+```
+I always prefer breaking any  pachine learning problem in five steps.We will follow this standard procedure for this problem also.Below are the five steps:
+1. Hypothesis Buliding  
+2. Exploratory Analysis
+3. Data manipulation and cleaning 
+4. Feauture Engineering 
+5. Model Building 
+
+1. Hypthesis  Buliding: lets check our dependent variables in dataset , then we will look for hypthesis from them on the basis of our intution.
+
+```{r}
+str(train)
+
+```
+We can make following hypthesis on the basis of our intution:
+1.Item_Fat_Content : low fat content items are generally more used then others.
+2.Item_Visibility : more visible item will be sold more.
+3.Item_Type  :  Daily use products should have higher sell then other  type of items
+4.Outlet_Size : Outlet wtih big size would have large varity of items , so there be will more sell then other store since people like to get evrything  from one place.
+5.Outlet_Location_Type  : store loacted in Tier-1 city should have more sell because of higher income of people there.
+6. Outlet_Type : A big supermarket will have more sell.
+Now move to second step.
+
+
+2.Exploratory Analysis
+```{r}
+
+load.libraries <- c('data.table', 'caret', 'ggplot2', 'ggthemes','gridExtra','plyr' ,'dplyr','corrplot', 'mice','doParallel')
+install.lib <- load.libraries[!load.libraries %in% installed.packages()]
+for(libs in install.lib) install.packages(libs, dependences = TRUE)
+sapply(load.libraries, require, character = TRUE)
+
+```
+ I am combining both train and test dataset into single dataset for exploration.
+```{r}
+test$Item_Outlet_Sales <-  0
+full <- rbind(train, test)
+
+summary(full)
+
+```
+Key points from summary: 
+-We need to impute the missing values in Item_Weight and Outlet_Size in the data cleaning part.
+- Item_Visibility has a min value of zero. This makes no practical sense because when a product is being   sold in a store, the visibility cannot be 0.
+-Outlet_Establishment_Years vary from 1985 to 2009.we can convert them to how old the particular store is, it should have a better impact on sales.
+```{r}
+#lets check our factor variables
+levels(full$Item_Fat_Content)
+```
+"LF","low fat " and "Low Fat" are  certainly same and  same with "reg" and "Regular"
+Lets revalue them.
+
+```{r}
+full$Item_Fat_Content <- revalue(full$Item_Fat_Content,c("LF" = "Low Fat", "low fat" = "Low Fat", "reg" = "Regular"))
+##here we are using revalue function from plyr package
+
+```
+lets check frequency of our categorical variable
+
+```{r}
+count(full,'Outlet_Type')
+
+fat <- as.data.frame( setNames(
+  aggregate(
+    full$Item_Fat_Content, 
+    by=list(Category=full$Item_Type,
+            Category=full$Item_Fat_Content), 
+    FUN= length),
+  c("Item_Type", "Item_Fat_Content", "number")
+))
+
+fat
+```
+We can see from our fat  table, fat content is assigned to non- food items like Health and Hygiene, Household and others.We need to change their fat content to none.
+```{r}
+levels(full$Item_Fat_Content) <- c(levels(full$Item_Fat_Content), "None")
+
+full[ which(full$Item_Type == "Health and Hygiene") ,]$Item_Fat_Content <- "None"
+full[ which(full$Item_Type == "Household") ,]$Item_Fat_Content <- "None"
+full[ which(full$Item_Type == "Others") ,]$Item_Fat_Content <- "None"
+
+```
+
+Imputing missing values: 
+```{r}
+
+table(is.na(full))
+levels(full$Outlet_Size)
+levels(full$Outlet_Size)[1] <- "Other"
+
+levels(full$Item_Weight)
+# boxplot of weights vs Item type
+ggplot(full, aes(Item_Type, Item_Weight)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, color = "black")) + 
+  xlab("Item Type") + 
+  ylab("Item Weight") + 
+  ggtitle("Item Weight vs Item Type")
+
+## boxplot of weights vs. Outlet Identifier
+ggplot(full, aes(Outlet_Identifier, Item_Weight)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, color = "black")) + 
+  xlab("Outlet_Identifier") + 
+  ylab("Item Weight") + 
+  ggtitle("Item Weight vs Outlet identifier")
+
+# OUT019 and OUT027 does not have any weight data
+# now to impute missing values of Item_Weight by using mean of item weight for the particular item (we will use Item identifier )
+weightsByItem <- as.data.frame( ddply(na.omit(full), 
+                                      ~Item_Identifier, 
+                                      summarise, 
+                                      mean=mean(Item_Weight), 
+                                      sd=sd(Item_Weight)))
+#Now we will use these values to fill in the missing values
+full$Item_Weight <- ifelse(is.na(full$Item_Weight), 
+                            weightsByItem$mean[
+                              match(full$Item_Identifier, weightsByItem$Item_Identifier)], full$Item_Weight)
+
+table(is.na(full))
+```
+
+```{r}
+# boxplot of weights vs Item type
+ggplot(full, aes(Item_Type, Item_Weight)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, color = "black")) + 
+  xlab("Item Type") + 
+  ylab("Item Weight") + 
+  ggtitle("Item Weight vs Item Type")
+
+## boxplot of weights vs. Outlet Identifier
+ggplot(full, aes(Outlet_Identifier, Item_Weight)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, color = "black")) + 
+  xlab("Outlet_Identifier") + 
+  ylab("Item Weight") + 
+  ggtitle("Item Weight vs Outlet identifier")
+
+
+```
+
+since this data was collected in 2013 ,so we will replace Outlet_Establishment_Year   by new variable Outlet_Years ,which is 2013 - Outlet_Establishment_Year. This will give us idea of how old is particular outlet.
+```{r}
+
+full$Outlet_Years <- as.factor(2013 - full$Outlet_Establishment_Year)
+
+
+#dropping Outlet_Establishment_Year
+full <- select(full, -c(Outlet_Establishment_Year))
+```
+
+```{r}
+str(full)
+# how often does each Outlet_Identifier appear in the data
+aggregate(full$Outlet_Identifier, by=list(Category=full$Outlet_Identifier), FUN=length)
+
+aggregate(full$Item_Identifier, by=list(Category=full$Outlet_Identifier), FUN= length)
+# we can see OUT010 and OUT019  have very less number of items as compared to other stores.
+#We need to check their outlet type.
+table(full$Outlet_Identifier,full$Outlet_Type)
+#we can see these two are grocery type stores.So we can infer from this a grocery store used to have small number of items.
+
+```
+
+
+```{r}
+# boxplot of  Sales vs. Outlet identifier
+ggplot(full[1:nrow(train),], aes(Outlet_Identifier, Item_Outlet_Sales)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, color = "black")) + 
+  xlab("Outlet identifier") + 
+  ylab("Sales") + 
+  ggtitle("Sales vs Outlet identifier")
+
+
+```
+
+
+```{r}
+# boxplot of  Sales vs. Outlet Type
+ggplot(full[1:nrow(train),], aes(x = Outlet_Type, y = Item_Outlet_Sales, fill = Outlet_Years)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, color = "black")) + 
+  xlab("Outlet Type") + 
+  ylab("Sales") + 
+  ggtitle("Sales vs Outlet Type")
+
+```
+ Sales in the one type 2 supermarket appear a bit low,
+as one would expect them to be higher than in
+the type 1 supermarkets.
+Maybe it's because it's still fairly new, having
+ been founded 4 years ago.
+
+```{r}
+# boxplot of  Sales vs. Outlet Type
+ggplot(full[1:nrow(train),], aes(x = Outlet_Type, y = Item_Outlet_Sales, fill = Outlet_Size)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 70, vjust = 0.5, color = "black")) + 
+  xlab("Outlet type") + 
+  ylab("Sales") + 
+  ggtitle("Sales vs Outlet type")
+
+```
+
+```{r}
+otherShops <- as.data.frame( setNames(
+  aggregate(
+    full$Outlet_Size, 
+    by=list(Category=full$Outlet_Identifier, 
+            Category=full$Outlet_Type,
+            Category=full$Outlet_Location_Type,
+            Category=full$Outlet_Size), 
+    FUN= length),
+  c("Outlet_Identifier","Outlet_Type", "Outlet_Location_Type", "Outlet_Size", "number")
+))
+otherShops
+
+```
