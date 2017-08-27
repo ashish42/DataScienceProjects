@@ -1,10 +1,12 @@
 ---
-title: "Machin learning model to predict Income level of individual from Adult  Income data set US "
+title: "Machine learning model to predict Income level of individual from Adult  Income dataset(US) "
 author: "Ashish Mishra"
 date: "August 22, 2017"
 output: html_document
 ---
 ## 1.Problem Statement 
+From Given various features, the aim is to build a predictive model to determine the income level for people in US. The income levels are binned at below 50K and above 50K.
+
 #setting working directory 
 ```{r}
 getwd()
@@ -228,8 +230,6 @@ num_train[,age := factor(age)]
 num_test[,age := factor(age)]
 
 ```
-
-
 ```{r}
 #Bin numeric variables with Zero and MoreThanZero
 num_train[,wage_per_hour := ifelse(wage_per_hour == 0,"Zero","MoreThanZero")][,wage_per_hour := as.factor(wage_per_hour)]
