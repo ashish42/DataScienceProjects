@@ -10,10 +10,6 @@ getwd()
 setwd("C:/Users/Ashish Mishra/Desktop/DS/DataScienceProjects/CensusIncome")
 #importing data.table library for faster computation
 library(data.table)
-library(caret)# for confusion matrix 
-library(mlr)#  for classification aloorithems 
-
-
 #loading training and test data set
 train <- fread("train.csv",na.strings = c(""," ","?","NA",NA))
 test <-  fread("test.csv",na.strings = c(""," ","?","NA",NA))
@@ -75,7 +71,7 @@ library(plotly)
 #library(devtools)
 #dev_mode(on=T)
 #install_github("hadley/ggplot2")
-library(ggplot2)
+#library(ggplot2)
 ```
 write a plot function
 ```{r}
@@ -353,7 +349,7 @@ f_measure
 
 ```
 Naive bays performing very poorly with minority classes,only 15% predicted correclty.
-Let's try xgboost Algorithem
+Let's try Xgboost Algorithm
 ```{r}
 #xgboost
 library(xgboost)
@@ -454,7 +450,7 @@ AUC is a measure of true positive rate and false positive rate. We aim to reach 
 pred2 <- setThreshold(predict.xgprob,0.4)
 confusionMatrix(d_test$income_level,pred2$data$response)
 ```
-We can see ,we are ablt to predict minority classses with 72.71 % accuracy.
+We can see ,we are able to predict minority classses with 72.71 % accuracy.
 Setting threshold using AUC curve actually affect our model performance. Let's further change it to 0.30
 
 ```{r}
