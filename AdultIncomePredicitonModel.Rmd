@@ -4,6 +4,7 @@ author: "Ashish Mishra"
 date: "August 22, 2017"
 output: html_document
 ---
+## 1.Problem Statement 
 #setting working directory 
 ```{r}
 getwd()
@@ -15,7 +16,7 @@ train <- fread("train.csv",na.strings = c(""," ","?","NA",NA))
 test <-  fread("test.csv",na.strings = c(""," ","?","NA",NA))
 ```
 
-Data Exploration
+## 2.Data Exploration
 ```{r}
 dim(train)
 str(train)
@@ -63,8 +64,7 @@ removing train and test dataset to save the memory
 ```{r}
 rm(train,test) 
 ```
-#Data Visualization
-# first with numerical data , we will load ggplot2 and plotly  for this.
+first with numerical data , we will load ggplot2 and plotly  for this.
 ```{r}
 library(ggplot2)
 library(plotly)
@@ -129,7 +129,7 @@ prop.table(table(cat_train$marital_status,cat_train$income_level),1)
 prop.table(table(cat_train$class_of_worker,cat_train$income_level),1)
 ```
 
-3. Data Cleaning 
+## 3.Data Cleaning 
 
 First lets check the missing values in numerical data 
 ```{r}
@@ -184,7 +184,7 @@ for (i in seq_along(cat_test)) set(cat_test, i=which(is.na(cat_test[[i]])), j=i,
 cat_test <- cat_test[, (names(cat_test)) := lapply(.SD, factor), .SDcols = names(cat_test)]
 ```
 
-4. Data Manipulation
+## 4.Data Manipulation
  In previous analysis, we saw that categorical variables have several levels with low frequencies. Such levels don't help as chances are they wouldn't be available in test set. We'll do this hygiene check anyways, in coming steps. To combine levels, a simple for loop does the trick. After combining, the new category level will named as 'Other'.
 ```{r}
 #combine factor levels with less than 5% values
@@ -242,7 +242,7 @@ num_test[,capital_losses := ifelse(capital_losses == 0,"Zero","MoreThanZero")][,
 num_test[,dividend_from_Stocks := ifelse(dividend_from_Stocks == 0,"Zero","MoreThanZero")][,dividend_from_Stocks := as.factor(dividend_from_Stocks)]
 ```
 
-5 . Machine learning model 
+## 5.Machine learning model 
 
 ```{r}
 #combine data and make test & train files
