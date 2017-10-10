@@ -1,0 +1,260 @@
+---
+title: "LoanPrediction"
+author: "Ashish Mishra"
+output: html_document
+---
+
+
+```{r}
+getwd()
+setwd("C:/Users/Ashish Mishra/Desktop/DS/DataScienceProjects/Loan Prediction")
+train <-read.csv("train.csv",na.strings = c(""," ",NA))# here we are replacing blank spaces into NA's.
+test <-read.csv("test.csv",na.strings = c(""," ",NA))
+
+load.libraries <- c('data.table', 'caret', 'ggplot2', 'ggthemes', 'dplyr', 'randomForest', 'mice','RANN','mlr','rpart','rattle','rpart.plot','car')
+install.lib <- load.libraries[!load.libraries %in% installed.packages()]
+install.packages("corrplot")
+for(libs in install.lib) install.packages(libs, dependences = TRUE)
+sapply(load.libraries, require, character = TRUE)
+
+```
+After loading dataset and packages,lets start exploring our data set 
+```{r}
+summary(train)
+
+summary(test)
+
+```
+In this Loan Prediction Data set ,we have Loan Status as dependent variable and other are independent variables.
+
+We can see in training set we have NA's in gender,Dependents, LoanAmount,Loan_Amount_Term,Credit_History,We need to impute these NA values.
+Same with test set.
+```{r}
+prop.table(table(train$Loan_Status))
+
+```
+Approx 69% Loan applicant has  Loan status as Y.
+
+Exploratory Analysis
+1. Gender
+```{r}
+par(mfrow=c(1,2))
+barplot(table(train$Gender),main="train set")
+barplot(table(test$Gender),main="test set")
+prop.table(table(train$Gender))
+prop.table(table(test$Gender))
+```
+
+2.Credit History
+There is strong relation between credit history and Loan Status
+```{r}
+
+par(mfrow=c(1,2))
+train$Credit_History <-as.factor(train$Credit_History)
+test$Credit_History <- as.factor(test$Credit_History)
+barplot(table(train$Credit_History),main="train set")
+barplot(table(test$Credit_History),main="test set")
+prop.table(table(train$Credit_History))
+prop.table(table(test$Credit_History))
+
+```
+
+3. Property Area
+```{r}
+
+par(mfrow=c(1,2))
+barplot(table(train$Property_Area),main="train set")
+barplot(table(test$Property_Area),main="test set")
+prop.table(table(train$Property_Area))
+prop.table(table(test$Property_Area))
+
+```
+
+Lets merge our training and test datasets to applying feautre engineering.
+```{r}
+full <- rbind(train[,2:12],test[,2:12])
+str(full)
+
+summary(full)
+sum(is.na(train))
+sum(is.na(test))
+```
+
+
+```{r}
+#Applicants with higher than 20000 income have been truncated from the plot 
+print(ggplot(data=full,aes(ApplicantIncome,fill=Married))+geom_bar(position="dodge")+facet_grid(Gender~.))
+
+
+print(ggplot(data=full[full$ApplicantIncome<20000,],aes(CoapplicantIncome,fill=Married))+geom_bar(position="dodge")+facet_grid(Gender~.))
+```
+
+
+```{r}
+full2<-mutate(full,TotalIncome=ApplicantIncome+CoapplicantIncome)
+print(ggplot(data=full2,aes(TotalIncome,fill=Married))+geom_bar(position="dodge")+facet_grid(Gender~.))
+
+
+```
+we are imputing  marital status as "No" when the coapplicant income is zero, otherwise it will be "Yes"
+```{r}
+full2$Married[is.na(full2$Married) & full2$CoapplicantIncome==0]<-"No"
+full2$Married[is.na(full2$Married)]<- "Yes"
+
+```
+Gender and Dependents
+```{r}
+full2[is.na(full2$Gender) & is.na(full2$Dependents),]
+
+```
+This applicant is not married but has higher income than the coapplicant. I'll impute this one as "Male". So all the other missing observations have only one of these variables missing. Let's take a look at the rows with missing number of dependents
+
+```{r}
+full2$Gender[is.na(full2$Gender) & is.na(full2$Dependents)] <- "Male"
+print(ggplot(full2,aes(x=Dependents, fill=Gender)) + geom_bar() + facet_grid(.~Married))  
+
+```
+It looks safe to impute the number of dependents for the unmarried males and females as the mode=0. The mode for the married applicants is also zero, but the other values are more significant than in the unmarried case. All the missing ones are male applicants. I will use rpart to predict the number of dependents for this population, using applicant income,coapplicant income, loan amount, loan term and property area as predcitors.
+
+
+```{r}
+full2$Dependents[is.na(full2$Dependents) & full2$Married=="No"]<- "0"
+
+mm <- full2[(full2$Gender=="Male" & full2$Married=="Yes"),c(3,6:9,11)]
+mmtrain<-mm[!is.na(mm$Dependents),]
+mmtest<- mm[is.na(mm$Dependents),]
+library(rpart)
+install.packages("rattle")
+library(rattle)
+depFit <- rpart(data=mmtrain,Dependents~.,xval=3)
+install.packages("rpart.plot")
+library(rpart.plot)
+
+fancyRpartPlot(depFit)
+
+pred<-predict(depFit,mmtrain,type="class")
+accuracy=sum(pred==mmtrain[,1])/length(pred)
+accuracy
+
+```
+Accuracy is not very good,but still better than replacing by mode = 0
+
+```{r}
+full2$Dependents[is.na(full2$Dependents) & full2$Gender=="Male" & 
+full2$Married == "Yes"] <-predict(depFit,newdata=mmtest,type="class")
+
+```
+
+Lets  impute missing Gender Values by using same rpart function
+
+```{r}
+gtrain<-full2[!is.na(full2$Gender),1:7]
+gtest<-full2[is.na(full2$Gender),1:7]
+genFit<-rpart(data=gtrain,Gender~.,xval=3)
+fancyRpartPlot(genFit)
+
+
+```
+
+Lets check accuracy
+```{r}
+
+pred<-predict(genFit,gtrain,type="class")
+accuracy<-sum(pred==gtrain[,1])/length(pred)
+accuracy
+
+
+```
+Here its giving very good aacuracy.
+
+```{r}
+
+full2$Gender[is.na(full2$Gender)]<-predict(genFit,gtest,type="class")
+```
+
+Nearly 86% applicant are not self employed ,so we are imputing ,missing values with "No"
+
+```{r}
+full2$Self_Employed[is.na(full2$Self_Employed)] <- "No"
+
+```
+
+Credit History:If the credit history is not available, this means that the applicant has not had many credit activities in the past, so these applicants should be treated as a separate category.
+```{r}
+
+library(car)
+full2$Credit_History<-recode(full2$Credit_History,"NA=2")
+
+```
+
+Loan Amount , it has some outlier ,so we are taking only less than 500.
+```{r}
+ltrain<-full2[!is.na(full2$LoanAmount) & full2$LoanAmount<500,c(1:8,10)]
+ltest <- full2[is.na(full2$LoanAmount),c(1:8,10)]
+loanFit <- glm(data=ltrain,LoanAmount~.,na.action=na.exclude)
+#impute
+full2$LoanAmount[is.na(full2$LoanAmount)] <- predict(loanFit,newdata=ltest)
+
+```
+Loan Amount Term
+
+```{r}
+full2$Loan_Amount_Term <- as.factor(full2$Loan_Amount_Term)
+print(ggplot(data=full2,aes(x=Loan_Amount_Term))+geom_bar())
+
+
+```
+
+```{r}
+
+full2$Loan_Amount_Term[is.na(full2$Loan_Amount_Term)]<-"360"
+full2$Loan_Amount_Term <- recode(full2$Loan_Amount_Term,"'350'='360';'6'='60'")
+```
+The vast majority of the loans had a term of 360 months, so I just use this to fill in the missing values. Note that term of 350 occurs only once and it is in the test set. I'll just assume that this was a misstype and should be 360. Similary, the 6 was probably meant to be 60.
+
+
+Adding new variable : I want to calculate ratio of Loan amount and total income per month.If the ratio is high ,bank unlikly to give approval  for the Loan.
+
+```{r}
+
+full2$Loan_Amount_Term <- as.numeric(as.character(full2$Loan_Amount_Term))
+full2$LoanPerMonth <- full2$LoanAmount/full2$Loan_Amount_Term
+full2$LoanPerMOnthByTotInc  <- full2$LoanPerMonth/full2$TotalIncome
+#make loan term variable factor again
+full2$Loan_Amount_Term <- as.factor(full2$Loan_Amount_Term)
+
+```
+
+```{r}
+sum(is.na(full2))
+
+```
+
+Finally our data set does not have any Na value.
+```{r}
+
+train_new <- cbind(Loan_Status=train$Loan_Status,full2[1:614,])
+
+#bogus Loan status for test set
+Loan_Status <- as.factor(sample(c("N","Y"),replace=TRUE,size=dim(test)[1]))
+test_new <- cbind(Loan_Status,full2[615:981,])
+
+predictors<-c("Credit_History", "Loan_Amount_Term","LoanPerMOnthByTotInc","Property_Area","Dependents")
+
+outcomeName <- "Loan_Status"
+model_gbm<-train(train_new[,predictors],train_new[,outcomeName],method='gbm')
+test_new$Loan_Status <-predict.train(object=model_gbm,test_new[,predictors],type="raw")
+summary(train_new)
+summary(test_new)
+
+submit3 <- data.frame(Loan_ID = test$Loan_ID, Loan_Status = test_new$Loan_Status)
+write.csv(submit3, "sol3.csv",row.names = F)
+
+
+
+
+
+```
+
+
+
