@@ -1,0 +1,12 @@
+
+#Restaurants Reviews
+In this project I have used Natural language Processing to classify the reviews given by customers for a restaurant.Here I have used Naive Bayes algorithm to classify the reviews into positive and negative.
+
+##ibraries Required pandas,re,nltk, sklearn
+
+##Below are the steps used in this model:
+Data Cleaning
+Our raw data is in text format ,we need to remove stop words from it and convert string into list.To do this we have used re and nltk library.
+Bag of Word model
+To create the bag of word model , we have used sklearn's feature extraction CountVectorizer class.
+Build the model using Naive Bayes
